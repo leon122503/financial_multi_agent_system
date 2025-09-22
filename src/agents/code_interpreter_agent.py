@@ -4,12 +4,13 @@ import base64
 import json
 import os
 import time
+import hashlib
 from typing import Any, Dict, List
 from pathlib import Path
 
 from openai import OpenAI
 
-from src.state import MarketState
+from src.langgraph_state import LangGraphMarketState
 from src.config import OPENAI_API_KEY, OPENAI_MODEL
 
 DEFAULT_MODEL = OPENAI_MODEL or "gpt-4o-mini"
@@ -23,7 +24,18 @@ def _safe_serialize(obj: Any) -> str:
         return json.dumps({"value": str(obj)})
 
 
-def code_interpreter_graphs(state: MarketState) -> MarketState:
+def _get_image_hash(image_bytes: bytes) -> str:
+    """Get hash of image bytes to detect duplicates."""
+    return hashlib.md5(image_bytes).hexdigest()
+
+
+def _is_duplicate_image(image_bytes: bytes, existing_hashes: set) -> bool:
+    """Check if image is a duplicate based on content hash."""
+    image_hash = _get_image_hash(image_bytes)
+    return image_hash in existing_hashes
+
+
+def code_interpreter_graphs(state: LangGraphMarketState) -> LangGraphMarketState:
     """
     Use OpenAI code interpreter to generate graphs from fundamentals
     based on the user's prompt.
@@ -57,13 +69,20 @@ def code_interpreter_graphs(state: MarketState) -> MarketState:
         "If the data is time series, plot vs time; otherwise choose bar/line/scatter appropriately. "
         "Display the plot and provide a concise textual summary of what the chart shows. "
         "Do not ask follow-up questions—make reasonable assumptions. "
+        "\n"
+        "You can create multiple different charts if they show different aspects of the data "
+        "(e.g., one chart for revenue trends, another for profitability metrics, etc.). "
+        "However, avoid creating duplicate charts that show the exact same information. "
+        "Each chart should provide unique insights or perspectives on the financial data. "
+        "\n"
         "Fundamentals shape hints: A top-level dict keyed by ticker (e.g., 'LULU'). "
         "Each value may include scalar fields (market_cap, margins), a 'valuation' dict, a 'profitability' dict, "
         "and arrays like 'annual_eps' or 'quarterly_eps' with items {date, eps}. "
         "When present, convert date strings to pandas datetime, coerce numerics with pd.to_numeric(errors='coerce'), "
         "drop None/NaN rows as needed, and build DataFrames for plotting. "
         "If multiple tickers, align series by date and include a legend. "
-        "Always show() the plot; savefig if helpful."
+        "Always show() the plot; savefig if helpful. "
+        "Create meaningful, distinct visualizations that complement each other."
     )
 
     user = (
@@ -92,6 +111,7 @@ def code_interpreter_graphs(state: MarketState) -> MarketState:
 
     # Extract images from container files
     saved_images: List[str] = []
+    image_hashes: set = set()  # Track image hashes to prevent duplicates
 
     if hasattr(resp, "output") and resp.output:
         OUTPUT_DIR = Path("graph/output")
@@ -135,7 +155,19 @@ def code_interpreter_graphs(state: MarketState) -> MarketState:
                                             # The result is an HttpxBinaryResponseContent object with binary data
                                             content_bytes = file_content.content
 
-                                            # Save to local file
+                                            # Check for duplicates
+                                            if _is_duplicate_image(
+                                                content_bytes, image_hashes
+                                            ):
+                                                print(
+                                                    f"   🔄 Skipping duplicate image: {filename}"
+                                                )
+                                                continue
+
+                                            # Add hash to set and save file
+                                            image_hashes.add(
+                                                _get_image_hash(content_bytes)
+                                            )
                                             path = (
                                                 OUTPUT_DIR / f"graph_{idx}_{filename}"
                                             )
@@ -143,6 +175,7 @@ def code_interpreter_graphs(state: MarketState) -> MarketState:
                                                 f.write(content_bytes)
 
                                             saved_images.append(str(path))
+                                            print(f"   💾 Saved unique chart: {path}")
                                             idx += 1
 
                                         except Exception as e:
@@ -163,19 +196,37 @@ def code_interpreter_graphs(state: MarketState) -> MarketState:
                                     img_bytes = base64.b64decode(
                                         output_item.image.base64
                                     )
+
+                                    # Check for duplicates
+                                    if _is_duplicate_image(img_bytes, image_hashes):
+                                        print(f"   🔄 Skipping duplicate base64 image")
+                                        continue
+
+                                    # Add hash to set and save file
+                                    image_hashes.add(_get_image_hash(img_bytes))
                                     path = OUTPUT_DIR / f"graph_{idx}.png"
                                     with open(path, "wb") as f:
                                         f.write(img_bytes)
                                     saved_images.append(str(path))
+                                    print(f"   💾 Saved unique chart: {path}")
                                     idx += 1
                                 except Exception as e:
                                     saved_images.append(f"failed_to_decode_base64:{e}")
 
-    result: MarketState = {
+    result: LangGraphMarketState = {
         "graph_summary": summary_text[:4000],
         "graph_images": saved_images,
         "code_interpreter_raw": str(resp)[:4000],
     }
+
     if not summary_text:
         result["code_interpreter_error"] = "No response text from code interpreter"
+
+    # Log final results
+    print(
+        f"   📊 Generated {len(saved_images)} unique chart(s) (duplicates filtered out)"
+    )
+    for img_path in saved_images:
+        print(f"     • {img_path}")
+
     return result

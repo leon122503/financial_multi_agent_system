@@ -4,7 +4,7 @@ import re
 import time
 from openai import OpenAI
 
-from src.state import MarketState
+from src.langgraph_state import LangGraphMarketState
 from src.config import OPENAI_API_KEY, OPENAI_MODEL
 
 DEFAULT_MODEL = OPENAI_MODEL or "gpt-4o-mini"
@@ -27,7 +27,7 @@ def _parse_json_obj(text: str) -> Dict[str, Any] | None:
         return None
 
 
-def select_tickers(state: MarketState) -> MarketState:
+def select_tickers(state: LangGraphMarketState) -> LangGraphMarketState:
     """
     Single-call selection logic:
     - If state already has tickers, return them without calling the LLM.
@@ -116,7 +116,7 @@ def select_tickers(state: MarketState) -> MarketState:
         "raw": text[:2000],
     }
 
-    result: MarketState = {"tickers": merged, "ticker_selection": selection}
+    result: LangGraphMarketState = {"tickers": merged, "ticker_selection": selection}
     if not selected:
         result["ticker_selection_error"] = "No tickers extracted"
     return result

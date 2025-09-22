@@ -2,7 +2,7 @@ from typing import Dict, List
 import time
 from openai import OpenAI
 
-from src.state import MarketState
+from src.langgraph_state import LangGraphMarketState
 from src.config import OPENAI_API_KEY, OPENAI_MODEL
 
 
@@ -39,7 +39,7 @@ def _web_search_summary_for_ticker(client: OpenAI, ticker: str) -> str:
     return summary or ""
 
 
-def fetch_news(state: MarketState) -> MarketState:
+def fetch_news(state: LangGraphMarketState) -> LangGraphMarketState:
     tickers = state.get("tickers") or []
     if not tickers:
         return {"news": []}

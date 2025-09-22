@@ -4,7 +4,7 @@ import time
 import re
 from openai import OpenAI
 
-from src.state import MarketState
+from src.langgraph_state import LangGraphMarketState
 from src.config import OPENAI_API_KEY, OPENAI_MODEL
 
 
@@ -58,7 +58,7 @@ def _analyze_ticker_with_web_search(client: OpenAI, ticker: str) -> Dict[str, An
     }
 
 
-def analyze_sentiment(state: MarketState) -> MarketState:
+def analyze_sentiment(state: LangGraphMarketState) -> LangGraphMarketState:
     tickers: List[str] = state.get("tickers") or state.get("symbols") or []
     if not tickers:
         return {"sentiment": {"error": "No tickers to analyze"}}

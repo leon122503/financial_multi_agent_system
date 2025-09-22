@@ -5,7 +5,7 @@ import time
 from typing import Any, Dict, List, Optional, Set
 from openai import OpenAI
 
-from src.state import MarketState
+from src.langgraph_state import LangGraphMarketState
 from src.config import OPENAI_API_KEY, OPENAI_MODEL
 
 # Import all available agents
@@ -24,7 +24,7 @@ class AIOrchestrator:
     AI-powered orchestrator that uses LLM to decide which agents to run
     based on the user's prompt and current state
     """
-    
+
     def __init__(self):
         # Available agents with their descriptions
         self.available_agents = {
@@ -34,7 +34,7 @@ class AIOrchestrator:
                 "inputs": ["prompt"],
                 "outputs": ["tickers", "ticker_selection"],
                 "dependencies": [],
-                "typical_use": "When user mentions company names or asks about stocks"
+                "typical_use": "When user mentions company names or asks about stocks",
             },
             "fundamentals": {
                 "function": fetch_fundamentals,
@@ -42,7 +42,7 @@ class AIOrchestrator:
                 "inputs": ["tickers"],
                 "outputs": ["fundamentals"],
                 "dependencies": ["ticker_selector"],
-                "typical_use": "For financial analysis, comparisons, valuations, investment decisions"
+                "typical_use": "For financial analysis, comparisons, valuations, investment decisions",
             },
             "news": {
                 "function": fetch_news,
@@ -50,7 +50,7 @@ class AIOrchestrator:
                 "inputs": ["tickers"],
                 "outputs": ["news"],
                 "dependencies": ["ticker_selector"],
-                "typical_use": "For latest developments, market sentiment, recent events"
+                "typical_use": "For latest developments, market sentiment, recent events",
             },
             "sentiment": {
                 "function": analyze_sentiment,
@@ -58,7 +58,7 @@ class AIOrchestrator:
                 "inputs": ["tickers"],
                 "outputs": ["sentiment"],
                 "dependencies": ["ticker_selector"],
-                "typical_use": "For understanding market mood, investor sentiment, social trends"
+                "typical_use": "For understanding market mood, investor sentiment, social trends",
             },
             "advisor": {
                 "function": advisor,
@@ -66,7 +66,7 @@ class AIOrchestrator:
                 "inputs": ["fundamentals", "news", "sentiment"],
                 "outputs": ["recommendation"],
                 "dependencies": ["fundamentals"],
-                "typical_use": "For investment advice, buy/sell decisions, portfolio recommendations"
+                "typical_use": "For investment advice, buy/sell decisions, portfolio recommendations",
             },
             "code_interpreter": {
                 "function": code_interpreter_graphs,
@@ -74,11 +74,13 @@ class AIOrchestrator:
                 "inputs": ["fundamentals", "prompt"],
                 "outputs": ["graph_images", "graph_summary"],
                 "dependencies": ["fundamentals"],
-                "typical_use": "For plotting data, creating charts, visual comparisons, trend analysis"
-            }
+                "typical_use": "For plotting data, creating charts, visual comparisons, trend analysis",
+            },
         }
-    
-    def decide_next_agents(self, prompt: str, current_state: MarketState, executed_agents: Set[str]) -> List[str]:
+
+    def decide_next_agents(
+        self, prompt: str, current_state: MarketState, executed_agents: Set[str]
+    ) -> List[str]:
         """
         Use AI to decide which agents to run next based on:
         - User's original prompt
@@ -87,30 +89,40 @@ class AIOrchestrator:
         """
         if not OPENAI_API_KEY:
             return []
-        
+
         client = OpenAI(api_key=OPENAI_API_KEY)
-        
+
         # Build context for AI decision
         available_agents_info = []
         for agent_name, agent_info in self.available_agents.items():
             if agent_name not in executed_agents:
                 # Check if dependencies are met
-                deps_met = all(dep in executed_agents for dep in agent_info["dependencies"])
-                status = "✅ Ready" if deps_met else f"⏳ Waiting for: {', '.join(agent_info['dependencies'])}"
-                
-                available_agents_info.append(f"""
+                deps_met = all(
+                    dep in executed_agents for dep in agent_info["dependencies"]
+                )
+                status = (
+                    "✅ Ready"
+                    if deps_met
+                    else f"⏳ Waiting for: {', '.join(agent_info['dependencies'])}"
+                )
+
+                available_agents_info.append(
+                    f"""
 {agent_name}:
   Description: {agent_info['description']}
   Inputs needed: {', '.join(agent_info['inputs'])}
   Outputs: {', '.join(agent_info['outputs'])}
   Dependencies: {', '.join(agent_info['dependencies']) if agent_info['dependencies'] else 'None'}
   Status: {status}
-  Use case: {agent_info['typical_use']}""")
-        
+  Use case: {agent_info['typical_use']}"""
+                )
+
         # Current state summary
         state_summary = []
         if current_state.get("tickers"):
-            state_summary.append(f"Tickers identified: {', '.join(current_state['tickers'])}")
+            state_summary.append(
+                f"Tickers identified: {', '.join(current_state['tickers'])}"
+            )
         if current_state.get("fundamentals"):
             state_summary.append("Fundamentals data available")
         if current_state.get("news"):
@@ -121,7 +133,7 @@ class AIOrchestrator:
             state_summary.append("Investment recommendation available")
         if current_state.get("graph_images"):
             state_summary.append("Visualizations created")
-        
+
         system_prompt = f"""
 You are an AI orchestrator that decides which analysis agents to run next for financial analysis.
 
@@ -163,12 +175,12 @@ Return ONLY the JSON array, no other text.
                 model=DEFAULT_MODEL,
                 input=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": "What agents should run next?"}
-                ]
+                    {"role": "user", "content": "What agents should run next?"},
+                ],
             )
-            
+
             response_text = getattr(response, "output_text", "[]").strip()
-            
+
             # Try to parse JSON response
             try:
                 agents_to_run = json.loads(response_text)
@@ -176,13 +188,15 @@ Return ONLY the JSON array, no other text.
                     # Filter out invalid agents and already executed ones
                     valid_agents = []
                     for agent in agents_to_run:
-                        if (agent in self.available_agents and 
-                            agent not in executed_agents):
+                        if (
+                            agent in self.available_agents
+                            and agent not in executed_agents
+                        ):
                             # Check dependencies
                             deps = self.available_agents[agent]["dependencies"]
                             if all(dep in executed_agents for dep in deps):
                                 valid_agents.append(agent)
-                    
+
                     return valid_agents
                 else:
                     print(f"⚠️ AI returned non-list: {response_text}")
@@ -190,24 +204,28 @@ Return ONLY the JSON array, no other text.
             except json.JSONDecodeError:
                 print(f"⚠️ Failed to parse AI response as JSON: {response_text}")
                 return []
-                
+
         except Exception as e:
             print(f"❌ Error in AI decision making: {e}")
             return []
-    
-    def should_continue(self, prompt: str, current_state: MarketState, executed_agents: Set[str]) -> bool:
+
+    def should_continue(
+        self, prompt: str, current_state: MarketState, executed_agents: Set[str]
+    ) -> bool:
         """
         Ask AI if the analysis is complete or if more agents should be run
         """
         if not OPENAI_API_KEY:
             return False
-        
+
         client = OpenAI(api_key=OPENAI_API_KEY)
-        
+
         # Build summary of what we have
         available_data = []
         if current_state.get("tickers"):
-            available_data.append(f"Stock tickers: {', '.join(current_state['tickers'])}")
+            available_data.append(
+                f"Stock tickers: {', '.join(current_state['tickers'])}"
+            )
         if current_state.get("fundamentals"):
             available_data.append("Financial fundamentals data")
         if current_state.get("news"):
@@ -217,8 +235,10 @@ Return ONLY the JSON array, no other text.
         if current_state.get("recommendation"):
             available_data.append("Investment recommendation")
         if current_state.get("graph_images"):
-            available_data.append(f"{len(current_state['graph_images'])} visualization(s)")
-        
+            available_data.append(
+                f"{len(current_state['graph_images'])} visualization(s)"
+            )
+
         system_prompt = f"""
 You are evaluating whether a financial analysis is complete.
 
@@ -246,32 +266,34 @@ Respond with ONLY "YES" if the analysis is complete, or "NO" if more work is nee
                 model=DEFAULT_MODEL,
                 input=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": "Is the analysis complete?"}
-                ]
+                    {"role": "user", "content": "Is the analysis complete?"},
+                ],
             )
-            
+
             response_text = getattr(response, "output_text", "NO").strip().upper()
             return "NO" in response_text
-            
+
         except Exception as e:
             print(f"❌ Error checking completion: {e}")
             return False
-    
+
     def generate_final_response(self, prompt: str, current_state: MarketState) -> str:
         """
         Generate a comprehensive final response based on all collected data
         """
         if not OPENAI_API_KEY:
             return "Analysis completed. Please check the detailed results."
-        
+
         client = OpenAI(api_key=OPENAI_API_KEY)
-        
+
         # Build comprehensive context
         context_parts = []
-        
+
         if current_state.get("tickers"):
-            context_parts.append(f"Analyzed stocks: {', '.join(current_state['tickers'])}")
-        
+            context_parts.append(
+                f"Analyzed stocks: {', '.join(current_state['tickers'])}"
+            )
+
         if current_state.get("fundamentals"):
             fundamentals = current_state["fundamentals"]
             if isinstance(fundamentals, dict):
@@ -287,26 +309,34 @@ Respond with ONLY "YES" if the analysis is complete, or "NO" if more work is nee
                             metrics.append(f"Revenue: ${data['revenue']:,.0f}")
                         if metrics:
                             context_parts.append(f"  {ticker}: {', '.join(metrics)}")
-        
+
         if current_state.get("news"):
             news_items = current_state["news"]
             if isinstance(news_items, list) and news_items:
-                context_parts.append(f"Latest news: {len(news_items)} articles analyzed")
-        
+                context_parts.append(
+                    f"Latest news: {len(news_items)} articles analyzed"
+                )
+
         if current_state.get("sentiment"):
             sentiment_data = current_state["sentiment"]
             if isinstance(sentiment_data, dict):
                 context_parts.append("Market sentiment analysis completed")
-        
+
         if current_state.get("recommendation"):
-            context_parts.append(f"Investment recommendation: {current_state['recommendation']}")
-        
+            context_parts.append(
+                f"Investment recommendation: {current_state['recommendation']}"
+            )
+
         if current_state.get("graph_images"):
-            context_parts.append(f"Created {len(current_state['graph_images'])} visualization(s)")
-        
+            context_parts.append(
+                f"Created {len(current_state['graph_images'])} visualization(s)"
+            )
+
         if current_state.get("graph_summary"):
-            context_parts.append(f"Chart analysis: {current_state['graph_summary'][:200]}...")
-        
+            context_parts.append(
+                f"Chart analysis: {current_state['graph_summary'][:200]}..."
+            )
+
         system_prompt = f"""
 You are a professional financial advisor providing a final comprehensive response.
 
@@ -336,48 +366,57 @@ Structure your response to be clear and valuable to the user.
                 model=DEFAULT_MODEL,
                 input=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": "Please provide the final comprehensive response."}
-                ]
+                    {
+                        "role": "user",
+                        "content": "Please provide the final comprehensive response.",
+                    },
+                ],
             )
-            
-            return getattr(response, "output_text", "Analysis completed. Please check the detailed results.")
-            
+
+            return getattr(
+                response,
+                "output_text",
+                "Analysis completed. Please check the detailed results.",
+            )
+
         except Exception as e:
             return f"Analysis completed with comprehensive data. Error generating summary: {e}"
-    
+
     def orchestrate(self, state: MarketState, max_iterations: int = 10) -> MarketState:
         """
         Main AI-driven orchestration method
         """
         prompt = state.get("prompt", "")
-        
+
         if not prompt.strip():
             return {
                 **state,
                 "ai_orchestrator_error": "No prompt provided",
-                "message": "Please provide a question or request to analyze."
+                "message": "Please provide a question or request to analyze.",
             }
-        
+
         print(f"🤖 AI Orchestrator starting analysis...")
         print(f"📝 User request: {prompt}")
-        
+
         current_state = state.copy()
         executed_agents: Set[str] = set()
         iteration = 0
-        
+
         while iteration < max_iterations:
             iteration += 1
             print(f"\n🔄 Iteration {iteration}")
-            
+
             # Ask AI what to do next
-            next_agents = self.decide_next_agents(prompt, current_state, executed_agents)
-            
+            next_agents = self.decide_next_agents(
+                prompt, current_state, executed_agents
+            )
+
             if not next_agents:
                 print("🤖 AI says: No more agents needed")
                 break
-            
+
             print(f"🤖 AI decided to run: {', '.join(next_agents)}")
-            
+
             # Execute the suggested agents
             for agent_name in next_agents:
                 if agent_name in self.available_agents:
@@ -385,33 +424,33 @@ Structure your response to be clear and valuable to the user.
                         print(f"  🔄 Running {agent_name}...")
                         agent_func = self.available_agents[agent_name]["function"]
                         result = agent_func(current_state)
-                        
+
                         if isinstance(result, dict):
                             current_state.update(result)
                             executed_agents.add(agent_name)
-                            
+
                             # Check for errors
                             error_key = f"{agent_name}_error"
                             if error_key in result:
                                 print(f"    ⚠️  Warning: {result[error_key]}")
                         else:
                             print(f"    ⚠️  Unexpected result type: {type(result)}")
-                            
+
                     except Exception as e:
                         error_msg = f"Error in {agent_name}: {str(e)}"
                         print(f"    ❌ {error_msg}")
                         current_state[f"{agent_name}_error"] = error_msg
                 else:
                     print(f"    ⚠️  Unknown agent: {agent_name}")
-            
+
             # Ask AI if we should continue
             if not self.should_continue(prompt, current_state, executed_agents):
                 print("🤖 AI says: Analysis is complete")
                 break
-        
+
         if iteration >= max_iterations:
             print(f"⏰ Reached maximum iterations ({max_iterations})")
-        
+
         # Generate final response
         print("📝 Generating final response...")
         try:
@@ -420,23 +459,26 @@ Structure your response to be clear and valuable to the user.
             current_state["ai_orchestrator_executed"] = list(executed_agents)
             current_state["ai_orchestrator_iterations"] = iteration
         except Exception as e:
-            current_state["ai_orchestrator_error"] = f"Error generating final response: {e}"
-            current_state["message"] = "Analysis completed. Please check individual agent results."
-        
+            current_state["ai_orchestrator_error"] = (
+                f"Error generating final response: {e}"
+            )
+            current_state["message"] = (
+                "Analysis completed. Please check individual agent results."
+            )
+
         print("✅ AI orchestration complete!")
         return current_state
 
 
 # Convenience function
-def ai_analyze_request(prompt: str, context: Optional[Dict[str, Any]] = None, max_iterations: int = 10) -> MarketState:
+def ai_analyze_request(
+    prompt: str, context: Optional[Dict[str, Any]] = None, max_iterations: int = 10
+) -> MarketState:
     """
     Analyze a user request using AI-driven orchestration
     """
     orchestrator = AIOrchestrator()
-    
-    initial_state: MarketState = {
-        "prompt": prompt,
-        "context": context or {}
-    }
-    
+
+    initial_state: MarketState = {"prompt": prompt, "context": context or {}}
+
     return orchestrator.orchestrate(initial_state, max_iterations)

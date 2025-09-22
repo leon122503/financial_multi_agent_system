@@ -2,7 +2,7 @@ from typing import Any, Dict, List
 import traceback
 import requests
 
-from src.state import MarketState
+from src.langgraph_state import LangGraphMarketState
 from src.config import ALPHAVANTAGE_API_KEY
 
 
@@ -163,7 +163,7 @@ def _fundamentals_for_ticker(ticker: str) -> Dict[str, Any]:
         }
 
 
-def fetch_fundamentals(state: MarketState) -> MarketState:
+def fetch_fundamentals(state: LangGraphMarketState) -> LangGraphMarketState:
     tickers: List[str] = state.get("tickers") or []
     results: Dict[str, Dict[str, Any]] = {}
     for tk in tickers:

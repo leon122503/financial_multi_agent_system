@@ -4,7 +4,7 @@ import time
 from openai import OpenAI
 import openai
 
-from src.state import MarketState
+from src.langgraph_state import LangGraphMarketState
 from src.config import OPENAI_API_KEY, OPENAI_MODEL
 
 
@@ -18,7 +18,7 @@ SYSTEM_PROMPT = (
 )
 
 
-def _build_input_text(state: MarketState) -> str:
+def _build_input_text(state: LangGraphMarketState) -> str:
     tickers: List[str] = state.get("tickers") or []
     fundamentals = state.get("fundamentals", {}) or {}
     news = state.get("news", []) or []
@@ -49,7 +49,7 @@ def _build_input_text(state: MarketState) -> str:
     return "\n\n".join(sections) if sections else "No ticker data provided."
 
 
-def advisor(state: MarketState) -> MarketState:
+def advisor(state: LangGraphMarketState) -> LangGraphMarketState:
     if not OPENAI_API_KEY:
         return {"recommendation": "OPENAI_API_KEY not set; skipping LLM advisor."}
 

@@ -70,6 +70,24 @@ python run_langgraph_orchestrator.py "What's the latest news on Tesla and market
 python run_langgraph_orchestrator.py "Create a chart comparing Amazon and Meta revenue growth"
 ```
 
+### 📊 Sample Analysis Output
+
+**Query:** `"Should I invest in Lululemon for a long term hold, Please also generate a chart with their financials"`
+
+**Generated Charts:**
+- ![Tech Stocks Comparison](graph/output/graph_1_cfile_68d1279702748191b69afc83f8a9bca1.png)
+- ![PE Ratio Analysis](graph/output/graph_2_cfile_68d1279704908191a6e77a46a2dfa213.png)
+- ![Valuation Metrics](graph/output/graph_3_cfile_68d1279705dc8191a6b5c863c9176269.png)
+- ![Market Performance](graph/output/graph_4_cfile_68d12797068c8191bfd4773fadc07385.png)
+
+**Detailed Results:** [View Full Analysis](outputs/langgraph_results_20250922_224118.json)
+
+The system automatically generates multiple complementary visualizations and provides comprehensive JSON output with:
+- Complete workflow execution logs
+- Financial data and analysis results
+- AI-driven recommendations and insights
+- Performance metrics and timing data
+
 ## 🔍 Output Features
 
 - **Execution Flow Diagrams**: Visual representation of workflow execution

@@ -1,4 +1,4 @@
 .env
 .venv
-.outputs
-.graph/output
+/outputs
+/graph
